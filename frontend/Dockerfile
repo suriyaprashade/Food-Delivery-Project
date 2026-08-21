@@ -6,19 +6,29 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
-
 RUN npm run build
+
 
 FROM nginx:alpine
 
-RUN addgroup -S nginxgrp && \
-    adduser -S -D -H -u 1001 -G nginxgrp nginxuser
+# Create non-root user
+RUN addgroup -S appgroup && \
+    adduser -S appuser -G appgroup
 
+# Copy frontend files
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-RUN chown -R 1001:1001 /usr/share/nginx/html
+# Give non-root user permission
+RUN chown -R appuser:appgroup /usr/share/nginx/html && \
+    chown -R appuser:appgroup /var/cache/nginx && \
+    chown -R appuser:appgroup /var/log/nginx && \
+    touch /var/run/nginx.pid && \
+    chown appuser:appgroup /var/run/nginx.pid
 
-USER 1001
+# Nginx listens on non-privileged port
+RUN sed -i 's/listen       80;/listen       8080;/' /etc/nginx/conf.d/default.conf
+
+USER appuser
 
 EXPOSE 8080
 
