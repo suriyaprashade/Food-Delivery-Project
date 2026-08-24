@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-app
+  namespace: production
+  labels: 
+    environment: production-app
+    app: food-app
+    developer: suriyaprashad
+spec: 
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: node-app  # Removed the extra "labels:" block here
+  template:
+    metadata:
+      labels:
+        app: node-app
+    spec:
+      containers:
+      - name: backend-app  # Placed the dash cleanly on the array item entry
+        image: suriyadevops/food-app-backend:v1
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          seccompProfile:  # Aligned this block correctly inside securityContext
+            type: RuntimeDefault
+        ports:              # Nested ports inside the backend-app container block
+        - name: http
+          containerPort: 4000
+          protocol: TCP
+        env:                # Nested env blocks inside the container array
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: backend-secret # Fixed to match your actual secret name
+              key: mongodb 
+        resources:          # Nested resource blocks inside the container array
+          requests:
+            cpu: "100m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        startupProbe:       # Nested all probes inside the container array
+          httpGet:
+            path: /
+            port: 4000
+          periodSeconds: 10
+          failureThreshold: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 4000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 4000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+      affinity:             # Kept at the pod spec root level
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: node-app
