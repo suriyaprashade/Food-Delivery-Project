@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: database-app
+  namespace: production
+  labels:
+    environment: production-app
+    app: food-app
+    developer: suriyaprashad
+
+spec:
+  serviceName: database-service
+  replicas: 1
+
+  updateStrategy:
+    type: RollingUpdate
+
+  selector:
+    matchLabels:
+      app: mongodb-app
+
+  template:
+    metadata:
+      labels:
+        app: mongodb-app
+
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: mongodb-app
+
+      containers:
+        - name: database-app
+          image: suriyadevops/mangodb:v1
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: mongodb
+              containerPort: 27017
+              protocol: TCP
+
+          volumeMounts:
+            - name: mongodb-volume
+              mountPath: /data/db
+
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: true
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+
+          startupProbe:
+            tcpSocket:
+              port: 27017
+            periodSeconds: 10
+            failureThreshold: 30
+
+          readinessProbe:
+            tcpSocket:
+              port: 27017
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+
+          livenessProbe:
+            tcpSocket:
+              port: 27017
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+
+  volumeClaimTemplates:
+    - metadata:
+        name: mongodb-volume
+
+      spec:
+        accessModes:
+          - ReadWriteOnce
+
+        resources:
+          requests:
+            storage: 10Gi
